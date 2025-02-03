@@ -9,6 +9,6 @@ class CallLogItem {
     var type: String? = null
     var duration: Int? = null
     var timing: String? = null
-    var date : String? = null
-    var timeDay : Long? = null
+    var date: String? = null
+    var timeDay: Long? = null
 }

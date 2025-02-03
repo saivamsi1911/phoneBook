@@ -23,24 +23,21 @@ class MainViewModel @Inject constructor(
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
-    val callListLiveData = MutableLiveData<MutableList<CallLogItem>>().apply { postValue(null) }
 
-    val callListPairedData = MutableLiveData<List<Pair<Long?,List<CallLogItem>>>>().apply { postValue(null) }
+    val callListPairedData =
+        MutableLiveData<List<Pair<Long?, List<CallLogItem>>>>().apply { postValue(null) }
+
     fun getCallLogs() {
         viewModelScope.launch(Dispatchers.IO) {
             val callLogsList = mutableListOf<CallLogItem>()
             val resolver = getApplication(context).contentResolver
             val cursor = resolver.query(
-                CallLog.Calls.CONTENT_URI,
-                arrayOf(
+                CallLog.Calls.CONTENT_URI, arrayOf(
                     CallLog.Calls.NUMBER,
                     CallLog.Calls.TYPE,
                     CallLog.Calls.DATE,
                     CallLog.Calls.DURATION
-                ),
-                null,
-                null,
-                CallLog.Calls.DATE + " DESC"
+                ), null, null, CallLog.Calls.DATE + " DESC"
             )
             cursor?.use {
                 val numberIndex = it.getColumnIndex(CallLog.Calls.NUMBER)
@@ -85,7 +82,6 @@ class MainViewModel @Inject constructor(
                     })
                 }
             }
-            callListLiveData.postValue(callLogsList)
             toGroupByDate(callLogsList)
         }
     }
@@ -111,11 +107,7 @@ class MainViewModel @Inject constructor(
             ContactsContract.PhoneLookup.CONTENT_FILTER_URI.buildUpon().appendPath(phoneNumber)
                 .build()
         val cursor = resolver.query(
-            uri,
-            arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME),
-            null,
-            null,
-            null
+            uri, arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME), null, null, null
         )
         cursor?.use {
             if (it.moveToFirst()) {

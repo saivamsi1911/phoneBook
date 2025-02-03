@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -17,6 +18,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -41,18 +43,40 @@ class MainActivity : ComponentActivity() {
         setContent {
             PhoneBookTheme {
                 val vm = hiltViewModel<MainViewModel>()
-                val context = LocalContext.current
+                val context = LocalContext.current as ComponentActivity
                 val isGranted = remember {
-                    mutableStateOf(false)
+                    mutableStateOf(
+                        (ActivityCompat.checkSelfPermission(
+                            context, android.Manifest.permission.READ_CALL_LOG
+                        ) == PackageManager.PERMISSION_GRANTED) && (ActivityCompat.checkSelfPermission(
+                            context, android.Manifest.permission.READ_CONTACTS
+                        ) == PackageManager.PERMISSION_GRANTED)
+                    )
                 }
-                if (ActivityCompat.checkSelfPermission(context, android.Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED) {
-                    HomeScreen(vm){
+
+
+                val permissionLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.RequestMultiplePermissions()
+                ) { granted ->
+                    if (!granted.values.contains(false)) isGranted.value = true
+                }
+
+                LaunchedEffect(Unit) {  // Launch permissions only once when the Composable enters composition
+                    if (!isGranted.value) {
+                        permissionLauncher.launch(
+                            arrayOf(
+                                android.Manifest.permission.READ_CALL_LOG,
+                                android.Manifest.permission.READ_CONTACTS
+                            )
+                        )
+                    }
+                }
+
+
+                if (isGranted.value) {
+                    HomeScreen(vm) {
                         println("@@@ call callback -> $it")
                         makePhoneCall(context, it)
-                    }
-                } else {
-                    RequestPermissionScreen {
-                        isGranted.value = true
                     }
                 }
             }
@@ -65,21 +89,5 @@ fun makePhoneCall(context: Context, phoneNumber: String) {
         data = Uri.parse("tel:$phoneNumber")
     }
     ContextCompat.startActivity(context, dialIntent, null)
-}
-
-
-@Composable
-fun RequestPermissionScreen(onPermissionGranted: () -> Unit) {
-    val context = LocalContext.current as ComponentActivity
-    val permissionLauncher = rememberUpdatedState(
-        context.registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) onPermissionGranted()
-        }
-    )
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.Center) {
-        Button(onClick = { permissionLauncher.value.launch(android.Manifest.permission.READ_CALL_LOG) }) {
-            Text("Grant Permission")
-        }
-    }
 }
 

@@ -30,25 +30,33 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
 import com.project.phonebook.R
 import com.project.phonebook.model.CallLogItem
+import com.project.phonebook.utils.ComposableLifecycle
 import com.project.phonebook.viewmodel.MainViewModel
 import java.text.SimpleDateFormat
 import java.util.Locale
 
 @Composable
-fun HomeScreen(viewModel: MainViewModel, callNumber : (String) -> Unit) {
+fun HomeScreen(viewModel: MainViewModel, callNumber: (String) -> Unit) {
     val scrollState = rememberScrollState()
 
-    val list = viewModel.callListLiveData.observeAsState()
     val pairedList = viewModel.callListPairedData.observeAsState()
 
-    LaunchedEffect(Unit) {
-        viewModel.getCallLogs()
+
+    ComposableLifecycle { _, event ->
+        when (event) {
+            Lifecycle.Event.ON_RESUME -> {
+                viewModel.getCallLogs()
+            }
+
+            else -> {}
+        }
     }
 
     @Composable
-    fun getDay(time : Long?) : String {
+    fun getDay(time: Long?): String {
         val smp1 = SimpleDateFormat(
             "dd MMM yyyy", Locale.getDefault()
         )
@@ -79,14 +87,14 @@ fun HomeScreen(viewModel: MainViewModel, callNumber : (String) -> Unit) {
                 .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-//            list.value?.forEach { item ->
-//                HomeItem(item)
-//            }
-
             pairedList.value?.forEach { pair ->
-                Text(getDay(pair.first) ?: "Unknown", fontSize = 18.sp, modifier = Modifier.padding(start = 10.dp, top = 14.dp))
+                Text(
+                    getDay(pair.first) ?: "Unknown",
+                    fontSize = 18.sp,
+                    modifier = Modifier.padding(start = 10.dp, top = 14.dp)
+                )
 
-                pair.second.forEach {  item ->
+                pair.second.forEach { item ->
                     HomeItem(item, callNumber)
 
                 }
@@ -97,12 +105,12 @@ fun HomeScreen(viewModel: MainViewModel, callNumber : (String) -> Unit) {
 }
 
 @Composable
-fun HomeItem(model: CallLogItem,callNumber: (String) -> Unit) {
+fun HomeItem(model: CallLogItem, callNumber: (String) -> Unit) {
 
     @Composable
-    fun getTimeText(dur : Int) : String {
-        val min = dur/60
-        val sec= dur %60
+    fun getTimeText(dur: Int): String {
+        val min = dur / 60
+        val sec = dur % 60
         return "$min min $sec sec"
     }
 
@@ -161,9 +169,14 @@ fun HomeItem(model: CallLogItem,callNumber: (String) -> Unit) {
                 ) {
 
                     Text(model.name ?: model.number ?: "")
-                    if((model.duration ?: 0) > 0)Text(getTimeText(model.duration ?: 0), modifier = Modifier.clip(
-                        RoundedCornerShape(20.dp)
-                    ).background(Color(0xFF64E986)).padding(horizontal = 5.dp))
+                    if ((model.duration ?: 0) > 0) Text(
+                        getTimeText(model.duration ?: 0), modifier = Modifier
+                            .clip(
+                                RoundedCornerShape(20.dp)
+                            )
+                            .background(Color(0xFF64E986))
+                            .padding(horizontal = 5.dp)
+                    )
 
                 }
                 Row(
@@ -176,20 +189,15 @@ fun HomeItem(model: CallLogItem,callNumber: (String) -> Unit) {
             }
         }
 
-        Image(
-            painter = painterResource(R.drawable.call),
-            modifier = Modifier.size(24.dp).clickable(
-                interactionSource = interactionSource,
-                indication = ripple(
-                    bounded = true,
-                    color = Color(0xffACACAC)
-                ),
-                onClick = {
+        Image(painter = painterResource(R.drawable.call),
+            modifier = Modifier
+                .size(24.dp)
+                .clickable(interactionSource = interactionSource, indication = ripple(
+                    bounded = true, color = Color(0xffACACAC)
+                ), onClick = {
                     callNumber.invoke(model.number ?: "")
-                }
-            ),
-            contentDescription = ""
-        )
+                }),
+            contentDescription = "")
 
     }
 }
@@ -204,7 +212,7 @@ fun HomeItemPreview() {
         duration = 5
         type = "Incoming"
     }
-    HomeItem(model){}
+    HomeItem(model) {}
 }
 
 
