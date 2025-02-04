@@ -11,14 +11,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.ripple
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,6 +32,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
+import androidx.paging.compose.collectAsLazyPagingItems
 import com.project.phonebook.R
 import com.project.phonebook.model.CallLogItem
 import com.project.phonebook.utils.ComposableLifecycle
@@ -40,11 +42,14 @@ import java.util.Locale
 
 @Composable
 fun HomeScreen(viewModel: MainViewModel, callNumber: (String) -> Unit) {
-    val scrollState = rememberScrollState()
 
     val pairedList = viewModel.callListPairedData.observeAsState()
 
+    val pagedList = viewModel.callLogs.collectAsLazyPagingItems()
 
+    val topLoad = remember {
+        mutableStateOf(false)
+    }
     ComposableLifecycle { _, event ->
         when (event) {
             Lifecycle.Event.ON_RESUME -> {
@@ -54,6 +59,15 @@ fun HomeScreen(viewModel: MainViewModel, callNumber: (String) -> Unit) {
             else -> {}
         }
     }
+
+    LaunchedEffect(pairedList.value) {
+        if (pairedList.value != null) topLoad.value = true
+        println("@@@ LaunchedEffect -> ${pairedList.value?.size}")
+    }
+
+
+
+
 
     @Composable
     fun getDay(time: Long?): String {
@@ -80,26 +94,30 @@ fun HomeScreen(viewModel: MainViewModel, callNumber: (String) -> Unit) {
             color = Color(0xFF000000)
         )
 
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .padding(horizontal = 10.dp)
-                .weight(1f)
-                .verticalScroll(scrollState),
+                .weight(1f),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            pairedList.value?.forEach { pair ->
+            items(pairedList.value?.size ?: 0) { pair ->
                 Text(
-                    getDay(pair.first) ?: "Unknown",
+                    getDay(pairedList.value?.get(pair)?.first) ?: "Unknown",
                     fontSize = 18.sp,
                     modifier = Modifier.padding(start = 10.dp, top = 14.dp)
                 )
 
-                pair.second.forEach { item ->
+                pairedList.value?.get(pair)?.second?.forEach { item ->
                     HomeItem(item, callNumber)
-
                 }
 
             }
+
+            if (topLoad.value) items(pagedList.itemCount) { index ->
+                HomeItem(pagedList[index] ?: CallLogItem(), callNumber)
+            }
+
+
         }
     }
 }
@@ -189,7 +207,8 @@ fun HomeItem(model: CallLogItem, callNumber: (String) -> Unit) {
             }
         }
 
-        Image(painter = painterResource(R.drawable.call),
+        Image(
+            painter = painterResource(R.drawable.call),
             modifier = Modifier
                 .size(24.dp)
                 .clickable(interactionSource = interactionSource, indication = ripple(
@@ -197,7 +216,8 @@ fun HomeItem(model: CallLogItem, callNumber: (String) -> Unit) {
                 ), onClick = {
                     callNumber.invoke(model.number ?: "")
                 }),
-            contentDescription = "")
+            contentDescription = ""
+        )
 
     }
 }

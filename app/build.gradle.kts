@@ -153,4 +153,6 @@ dependencies {
     kaptAndroidTest(libs.room.compiler)
 
     testImplementation(libs.bundles.test)
+    implementation(libs.paging.compose.v100alpha17)
+
 }

@@ -1,6 +1,7 @@
 [versions]
 #androidConfig
 minSdk = "24"
+pagingCompose = "3.3.2"
 targetSdk = "34"
 compileSdk = "34"
 
@@ -115,6 +116,7 @@ accompanist-insets = { module = "com.google.accompanist:accompanist-insets", ver
 material = { module = "com.google.android.material:material", version.ref = "materialVersion" }
 appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appCompat" }
 constraintlayout = { module = "androidx.constraintlayout:constraintlayout", version.ref = "constraintLayout" }
+paging-compose-v100alpha17 = { module = "androidx.paging:paging-compose", version.ref = "pagingCompose" }
 recyclerview = { module = "androidx.recyclerview:recyclerview", version.ref = "recyclerView" }
 sentry = { module = "io.sentry:sentry-android", version.ref = "sentry" }
 pdfview = { module = "com.dmitryborodin:pdfview-android", version.ref = "pdfView" }

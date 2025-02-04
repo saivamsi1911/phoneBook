@@ -1,71 +1,56 @@
-package com.project.phonebook.viewmodel
+package com.project.phonebook.utils
 
-import android.content.Context
+import android.app.Application
+import android.content.ContentResolver
+import android.os.Build
+import android.os.Bundle
 import android.provider.CallLog
+import android.provider.CallLog.Calls.LIMIT_PARAM_KEY
 import android.provider.ContactsContract
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import androidx.paging.Pager
-import androidx.paging.PagingConfig
-import androidx.paging.PagingData
-import androidx.paging.cachedIn
-import androidx.paging.map
-import com.google.gson.Gson
+import androidx.annotation.RequiresApi
+import androidx.paging.*
 import com.project.phonebook.model.CallLogItem
-import com.project.phonebook.utils.LogPager
-import com.project.phonebook.utils.set2Day
-import com.project.phonebook.utils.setDayStart
-import dagger.hilt.android.internal.Contexts.getApplication
-import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
-import javax.inject.Inject
 
-@HiltViewModel
-class MainViewModel @Inject constructor(
-    @ApplicationContext private val context: Context
-) : ViewModel() {
+class LogPager(private val application: Application) : PagingSource<Long, CallLogItem>() {
 
-
-    val callListPairedData =
-        MutableLiveData<List<Pair<Long?, List<CallLogItem>>>>().apply { postValue(null) }
-
-    val callLogs: Flow<PagingData<CallLogItem>> =
-        Pager(config = PagingConfig(
-            pageSize = 10,
-            prefetchDistance = 20,
-            initialLoadSize = 20,
-            enablePlaceholders = false
-        ),
-            pagingSourceFactory = { LogPager(getApplication(context)) }).flow
-            .cachedIn(viewModelScope)
-
-
-    fun getCallLogs() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val callLogsList = mutableListOf<CallLogItem>()
-            val resolver = getApplication(context).contentResolver
-
+    @RequiresApi(Build.VERSION_CODES.R)
+    override suspend fun load(params: LoadParams<Long>): LoadResult<Long, CallLogItem> {
+        return try {
+            val pageSize = params.loadSize
+            val resolver = application.contentResolver
             val twoDaysAgo = Calendar.getInstance()
             twoDaysAgo.set2Day()
             twoDaysAgo.add(Calendar.DATE, -1)
-            val selection = "${CallLog.Calls.DATE} >= ?"
-            val selectionArgs = arrayOf(twoDaysAgo.timeInMillis.toString())
+            val dateKey = params.key ?: twoDaysAgo.timeInMillis  // Start from the latest call
+            val queryArgs = Bundle().apply {
+                putString(ContentResolver.QUERY_ARG_SQL_SELECTION, "${CallLog.Calls.DATE} < ?")
+                putStringArray(
+                    ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS,
+                    arrayOf(dateKey.toString())
+                )
+                putString(ContentResolver.QUERY_ARG_SQL_SORT_ORDER, "${CallLog.Calls.DATE} DESC")
+                putInt(ContentResolver.QUERY_ARG_SQL_LIMIT, pageSize)
+            }
+
             val cursor = resolver.query(
-                CallLog.Calls.CONTENT_URI, arrayOf(
+                CallLog.Calls.CONTENT_URI.buildUpon()
+                    .appendQueryParameter(LIMIT_PARAM_KEY, pageSize.toString()).build(),
+                arrayOf(
                     CallLog.Calls.NUMBER,
                     CallLog.Calls.TYPE,
                     CallLog.Calls.DATE,
                     CallLog.Calls.DURATION
-                ), selection, selectionArgs, CallLog.Calls.DATE + " DESC"
+                ),
+                queryArgs,
+                null
             )
+            var nextKey: Long? = null
+
+            val callLogsList = mutableListOf<CallLogItem>()
+            var i = 0
             cursor?.use {
                 val numberIndex = it.getColumnIndex(CallLog.Calls.NUMBER)
                 val typeIndex = it.getColumnIndex(CallLog.Calls.TYPE)
@@ -73,8 +58,9 @@ class MainViewModel @Inject constructor(
                 val durationIndex = it.getColumnIndex(CallLog.Calls.DURATION)
 
                 while (it.moveToNext()) {
+                    i++
                     val number = it.getString(numberIndex) ?: "Unknown"
-                    val name = getContactName(number)
+                    val name = getContactName(application, number)
                     val type = when (it.getInt(typeIndex)) {
                         CallLog.Calls.INCOMING_TYPE -> "Incoming"
                         CallLog.Calls.OUTGOING_TYPE -> "Outgoing"
@@ -97,6 +83,7 @@ class MainViewModel @Inject constructor(
                     calendar.setDayStart()
 
                     val dur = it.getInt(durationIndex)
+                    nextKey = timeInMillis
 
                     callLogsList.add(CallLogItem().apply {
                         this.name = name
@@ -104,25 +91,25 @@ class MainViewModel @Inject constructor(
                         this.number = number
                         this.type = type
                         this.duration = dur
-                        this.date = date
                         this.timeDay = calendar.timeInMillis
                     })
                 }
             }
-            toGroupByDate(callLogsList)
+
+            LoadResult.Page(
+                data = callLogsList,
+                prevKey = null,
+                nextKey = if (callLogsList.isEmpty()) null else nextKey
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+            LoadResult.Error(e)
         }
+
     }
 
-    private fun toGroupByDate(list: MutableList<CallLogItem>) {
-        val data = list.groupBy {
-            it.timeDay
-        }.toList().sortedBy { it.first }.reversed()
-        callListPairedData.postValue(data)
-    }
-
-
-    private fun getContactName(phoneNumber: String): String? {
-        val resolver = getApplication(context).contentResolver
+    private fun getContactName(application: Application, phoneNumber: String): String? {
+        val resolver = application.contentResolver
         val uri =
             ContactsContract.PhoneLookup.CONTENT_FILTER_URI.buildUpon().appendPath(phoneNumber)
                 .build()
@@ -135,6 +122,12 @@ class MainViewModel @Inject constructor(
             }
         }
         return null
+    }
+
+    override fun getRefreshKey(state: PagingState<Long, CallLogItem>): Long? {
+        return state.anchorPosition?.let { anchorPosition ->
+            state.closestItemToPosition(anchorPosition)?.timeDay
+        }
     }
 
 }
