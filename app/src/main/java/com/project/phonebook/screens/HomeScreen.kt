@@ -113,11 +113,20 @@ fun HomeScreen(viewModel: MainViewModel, callNumber: (String) -> Unit) {
 
             }
 
-            if (topLoad.value) items(pagedList.itemCount) { index ->
-                HomeItem(pagedList[index] ?: CallLogItem(), callNumber)
+            if (topLoad.value) {
+                item() {
+                    Text(
+                        "Older",
+                        fontSize = 18.sp,
+                        modifier = Modifier.padding(start = 10.dp, top = 14.dp)
+                    )
+                }
+
+
+                items(pagedList.itemCount) { index ->
+                    HomeItem(pagedList[index] ?: CallLogItem(), callNumber)
+                }
             }
-
-
         }
     }
 }
